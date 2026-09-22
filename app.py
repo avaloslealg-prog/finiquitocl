@@ -1,9 +1,23 @@
 from datetime import date
+from urllib.parse import quote
 
 import streamlit as st
 
 from calculo import CAUSALES, UF_REFERENCIA, calcular
 from pdf_report import generar_pdf
+
+WHATSAPP = "56932841477"
+PRECIO_PDF = 2990
+
+
+def wa_link(nombre: str, total: int) -> str:
+    quien = nombre.strip() if nombre and nombre.strip() else "sin nombre"
+    texto = (
+        f"Hola, calculé un finiquito en FiniquitoCL "
+        f"({quien}, total estimado ${total:,.0f}). "
+        f"Quiero el PDF con desglose por ${PRECIO_PDF:,}.".replace(",", ".")
+    )
+    return f"https://wa.me/{WHATSAPP}?text={quote(texto)}"
 
 
 st.set_page_config(page_title="FiniquitoCL", page_icon="⚖️", layout="wide")
@@ -11,21 +25,29 @@ st.set_page_config(page_title="FiniquitoCL", page_icon="⚖️", layout="wide")
 st.markdown(
     """
 <style>
-.block-container {padding-top: 1.4rem; max-width: 1100px;}
+.block-container {padding-top: 1.2rem; max-width: 1100px;}
 .total-box {
   background: #0f3d2e; color: #f4fff8; border-radius: 16px;
   padding: 1.2rem 1.4rem; margin-top: .4rem;
 }
 .total-box h2 {margin: 0; font-size: 2rem;}
 .total-box p {margin: .2rem 0 0; opacity: .85;}
+.pay-box {
+  border: 1px solid #1f6b4a; border-radius: 14px;
+  padding: 1rem 1.1rem; margin: .8rem 0 1rem;
+  background: #0b2419;
+}
 .stAlert {border-radius: 12px;}
+@media (max-width: 640px) {
+  .total-box h2 {font-size: 1.6rem;}
+}
 </style>
 """,
     unsafe_allow_html=True,
 )
 
 st.title("FiniquitoCL")
-st.caption("Estimación de finiquito laboral en Chile · Arts. 67, 161, 162, 163 y 172 CT")
+st.caption("Calcula tu finiquito en Chile antes de firmar · estimación Arts. 67, 161, 162, 163 y 172")
 
 with st.sidebar:
     st.subheader("Indicadores")
@@ -34,15 +56,16 @@ with st.sidebar:
         min_value=1.0,
         value=float(UF_REFERENCIA),
         step=1.0,
-        help="Por defecto: UF del 22-09-2026. Ajústala al día del pago.",
+        help="Ajústala al día del pago del finiquito.",
     )
     st.caption(f"Tope 90 UF ≈ ${int(round(90 * valor_uf)):,}".replace(",", "."))
     st.markdown("---")
     st.markdown(
-        "**Monetización sugerida**  \n"
-        "Cálculo en pantalla: gratis  \n"
-        "PDF con desglose: $2.990"
+        f"**Cómo funciona**  \n"
+        f"Cálculo en pantalla: **gratis**  \n"
+        f"PDF con desglose: **${PRECIO_PDF:,}**".replace(",", ".")
     )
+    st.link_button("Escribir por WhatsApp", f"https://wa.me/{WHATSAPP}", use_container_width=True)
 
 col1, col2 = st.columns(2)
 with col1:
@@ -140,6 +163,23 @@ if calcular_btn or "resultado" in st.session_state:
         use_container_width=True,
     )
 
+    st.markdown(
+        f"""
+        <div class="pay-box">
+          <b>PDF con desglose: ${PRECIO_PDF:,}</b><br>
+          El cálculo en pantalla es gratis. El documento se envía por WhatsApp
+          cuando confirmes la transferencia.
+        </div>
+        """.replace(",", "."),
+        unsafe_allow_html=True,
+    )
+    st.link_button(
+        "Pedir PDF por WhatsApp",
+        wa_link(nombre, res.total),
+        use_container_width=True,
+        type="primary",
+    )
+
     pdf_bytes = generar_pdf(
         resultado=res,
         nombre=nombre,
@@ -148,13 +188,15 @@ if calcular_btn or "resultado" in st.session_state:
         termino=termino,
         valor_uf=float(valor_uf),
     )
-    st.download_button(
-        "Descargar PDF (versión premium del MVP)",
-        data=pdf_bytes,
-        file_name="finiquitoCL_estimacion.pdf",
-        mime="application/pdf",
-        use_container_width=True,
-    )
+    with st.expander("Uso interno: generar el PDF para enviarlo"):
+        st.caption("Esto lo usas tú después de ver el comprobante. El cliente no necesita abrirlo.")
+        st.download_button(
+            "Descargar PDF para enviar",
+            data=pdf_bytes,
+            file_name="finiquitoCL_estimacion.pdf",
+            mime="application/pdf",
+            use_container_width=True,
+        )
 
     with st.expander("Cómo se calculó"):
         for n in res.notas:
